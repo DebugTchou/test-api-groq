@@ -1,86 +1,241 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-type Msg = { role: "user" | "assistant" | "system"; content: string };
+type MsgRole = "system" | "user" | "assistant";
+type Msg = { role: MsgRole; content: string; id: string };
+
+function uid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function cx(...classes: Array<string | false | undefined | null>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export default function Page() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<Msg[]>([
-    { role: "system", content: "Tu es un assistant utile et concis." },
-    { role: "assistant", content: "Salut ! Écris un message 🙂" },
+    { role: "system", content: "Tu es un assistant utile, clair et concis.", id: uid() },
+    { role: "assistant", content: "Salut ! Écris-moi un message 🙂", id: uid() },
   ]);
 
-  const visible = useMemo(
-    () => messages.filter((m) => m.role !== "system"),
-    [messages]
-  );
+  const visible = useMemo(() => messages.filter((m) => m.role !== "system"), [messages]);
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+  }, [visible, loading]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2200);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  async function send() {
     const text = input.trim();
     if (!text || loading) return;
 
-    const next: Msg[] = [...messages, { role: "user", content: text }];
+    const next: Msg[] = [...messages, { role: "user", content: text, id: uid() }];
     setMessages(next);
     setInput("");
     setLoading(true);
 
     try {
+      // ✅ Payload EXACT pour ton backend actuel: { messages }
+      const payload = {
+        messages: next.map(({ role, content }) => ({ role, content })),
+      };
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Erreur API");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Erreur API (${res.status})`);
 
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.text || "(réponse vide)" },
-      ]);
+      const answer = (data?.text ?? "").toString() || "(réponse vide)";
+      setMessages((prev) => [...prev, { role: "assistant", content: answer, id: uid() }]);
+      queueMicrotask(() => inputRef.current?.focus());
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `⚠️ ${err.message}` },
+        { role: "assistant", content: `⚠️ ${err?.message || "Erreur"}`, id: uid() },
       ]);
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
-      <h1>Groq Chat</h1>
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  }
 
-      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, height: 420, overflow: "auto" }}>
-        {visible.map((m, i) => (
-          <div key={i} style={{ marginBottom: 12 }}>
-            <b>{m.role === "user" ? "Toi" : "Groq"}:</b>
-            <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
-          </div>
-        ))}
-        {loading && (
+  function clear() {
+    setMessages([
+      { role: "system", content: "Tu es un assistant utile, clair et concis.", id: uid() },
+      { role: "assistant", content: "Ok, on repart à zéro. Dis-moi 🙂", id: uid() },
+    ]);
+    setToast("Historique effacé");
+    queueMicrotask(() => inputRef.current?.focus());
+  }
+
+  async function copyLastSafe() {
+    const last = [...visible].reverse().find((m) => m.role === "assistant")?.content;
+    if (!last) return setToast("Rien à copier");
+
+    // ✅ ultra-safe : si clipboard indispo, on affiche un toast
+    try {
+      if (!("clipboard" in navigator)) throw new Error("Clipboard indisponible");
+      await navigator.clipboard.writeText(last);
+      setToast("Copié ✅");
+    } catch {
+      setToast("Copie non autorisée ici");
+    }
+  }
+
+  function fillPrompt(p: string) {
+    setInput(p);
+    queueMicrotask(() => inputRef.current?.focus());
+  }
+
+  return (
+    <main className="app">
+      <div className="bg-orb orb-1" />
+      <div className="bg-orb orb-2" />
+
+      <header className="topbar">
+        <div className="brand">
+          <div className="logo" aria-hidden />
           <div>
-            <b>Groq:</b> …
+            <div className="title">Groq Chat</div>
+            <div className="subtitle">Design premium • interactions • sans streaming</div>
           </div>
-        )}
+        </div>
+
+        <div className="actions">
+          <button className="btn ghost" onClick={copyLastSafe} title="Copier la dernière réponse">
+            Copier
+          </button>
+          <button className="btn danger" onClick={clear}>
+            Effacer
+          </button>
+        </div>
+      </header>
+
+      <div className="shell">
+        <aside className="side">
+          <div className="card">
+            <div className="cardTitle">Raccourcis</div>
+            <ul className="list">
+              <li><b>Entrée</b> : envoyer</li>
+              <li><b>Shift + Entrée</b> : nouvelle ligne</li>
+              <li><b>Effacer</b> : reset conversation</li>
+            </ul>
+          </div>
+
+          <div className="card">
+            <div className="cardTitle">Prompts rapides</div>
+            <div className="chips">
+              <button className="chip" onClick={() => fillPrompt("Fais-moi un plan de projet en 5 points.")}>
+                Plan projet
+              </button>
+              <button className="chip" onClick={() => fillPrompt("Explique-moi un concept compliqué comme si j’avais 10 ans.")}>
+                ELI10
+              </button>
+              <button className="chip" onClick={() => fillPrompt("Donne-moi 10 idées de posts LinkedIn sur l’IA.")}>
+                Idées
+              </button>
+              <button className="chip" onClick={() => fillPrompt("Résume ce sujet en 5 bullet points: ...")}>
+                Résumé
+              </button>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="cardTitle">Status</div>
+            <div className="statusRow">
+              <span className={loading ? "dot on" : "dot"} />
+              <span className="muted">{loading ? "Génération..." : "Prêt"}</span>
+            </div>
+          </div>
+        </aside>
+
+        <section className="chat">
+          <div className="chatHeader">
+            <div className="chatHeaderLeft">
+              <div className="chatTitle">Conversation</div>
+              <div className="muted">Réponses stables (pas de streaming)</div>
+            </div>
+            <div className="chatHeaderRight">
+              <span className="pill soft">{visible.length} messages</span>
+            </div>
+          </div>
+
+          <div className="chatBody" ref={listRef}>
+            {visible.map((m) => (
+              <MessageBubble key={m.id} role={m.role} content={m.content} />
+            ))}
+
+            {loading && (
+              <div className="typing">
+                <span className="typingDot" />
+                <span className="typingDot" />
+                <span className="typingDot" />
+                <span className="typingText">Groq réfléchit…</span>
+              </div>
+            )}
+          </div>
+
+          <div className="composer">
+            <div className="composerInner">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Écris ton message… (Entrée pour envoyer)"
+                className="textarea"
+                rows={2}
+              />
+              <button className="btn primary" onClick={send} disabled={loading || !input.trim()}>
+                Envoyer
+              </button>
+            </div>
+
+            <div className="composerHint">
+              Astuce : clique sur un prompt à gauche, ou fais <b>Entrée</b> pour envoyer.
+            </div>
+          </div>
+        </section>
       </div>
 
-      <form onSubmit={send} style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ton message…"
-          style={{ flex: 1, padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-        />
-        <button disabled={loading} style={{ padding: "10px 14px", borderRadius: 10 }}>
-          Envoyer
-        </button>
-      </form>
+      {toast && <div className="toast">{toast}</div>}
     </main>
+  );
+}
+
+function MessageBubble({ role, content }: { role: MsgRole; content: string }) {
+  const isUser = role === "user";
+  return (
+    <div className={cx("row", isUser ? "rowUser" : "rowBot")}>
+      <div className={cx("bubble", isUser ? "bubbleUser" : "bubbleBot")}>
+        <div className="meta">
+          <span className="who">{isUser ? "Toi" : "Groq"}</span>
+        </div>
+        <div className="text">{content}</div>
+      </div>
+    </div>
   );
 }
