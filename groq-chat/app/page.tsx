@@ -119,8 +119,8 @@ export default function Page() {
         <div className="brand">
           <div className="logo" aria-hidden />
           <div>
-            <div className="title">Groq Chat</div>
-            <div className="subtitle">Design premium • interactions • sans streaming</div>
+            <div className="title">Assistant IA de Louka</div>
+            <div className="subtitle">V3 de l'assistant IA personnel de Louka</div>
           </div>
         </div>
 
@@ -148,17 +148,17 @@ export default function Page() {
           <div className="card">
             <div className="cardTitle">Prompts rapides</div>
             <div className="chips">
-              <button className="chip" onClick={() => fillPrompt("Fais-moi un plan de projet en 5 points.")}>
-                Plan projet
+              <button className="chip" onClick={() => fillPrompt("Parlons actualités Pokémon")}>
+                Actus Pokémon
               </button>
-              <button className="chip" onClick={() => fillPrompt("Explique-moi un concept compliqué comme si j’avais 10 ans.")}>
-                ELI10
+              <button className="chip" onClick={() => fillPrompt("Parlons Poker")}>
+                Actus Poker
               </button>
-              <button className="chip" onClick={() => fillPrompt("Donne-moi 10 idées de posts LinkedIn sur l’IA.")}>
-                Idées
+              <button className="chip" onClick={() => fillPrompt("Parlons Handball")}>
+                Actus Handball
               </button>
-              <button className="chip" onClick={() => fillPrompt("Résume ce sujet en 5 bullet points: ...")}>
-                Résumé
+              <button className="chip" onClick={() => fillPrompt("Parlons actions et investissements")}>
+                Actus bourse
               </button>
             </div>
           </div>
@@ -193,7 +193,7 @@ export default function Page() {
                 <span className="typingDot" />
                 <span className="typingDot" />
                 <span className="typingDot" />
-                <span className="typingText">Groq réfléchit…</span>
+                <span className="typingText">Louka, ton assistant IA réfléchit…</span>
               </div>
             )}
           </div>
@@ -232,7 +232,7 @@ function MessageBubble({ role, content }: { role: MsgRole; content: string }) {
     <div className={cx("row", isUser ? "rowUser" : "rowBot")}>
       <div className={cx("bubble", isUser ? "bubbleUser" : "bubbleBot")}>
         <div className="meta">
-          <span className="who">{isUser ? "Toi" : "Groq"}</span>
+          <span className="who">{isUser ? "Toi" : "Assistant IA de Louka"}</span>
         </div>
         <div className="text">{content}</div>
       </div>
